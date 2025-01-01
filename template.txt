@@ -1,0 +1,24 @@
+# This is a template of how you can feed audio and images and I generate videos
+# Any line starting with a '#' will be ignored so all of this is just instructional text
+# Similar to how you send emails previously, Example:
+# Song: Rim Jhim Gire Sawan
+# Film: Manzil
+# Singers (Original): Kishore Kumar
+# Singers (Karaoke): Ravi Shankar Kolathur
+#
+# I want to also add 2 more fields, these will not be included in the video but are for me
+# One is the Singer Images and the other is a Poster Image
+# Singer Images will be a comma seperated list of images you want to use.
+# For singer images, when you are adding a new image just attach it to the email along with template
+# You and I will have a folder of singer images that are syncronized and so we will be using the same images
+# Please look at the zip file sent along with this email for the singer images folder, to seed this.
+# Poster Image is a link to the image from online for the movie poster
+# Please try to find images that are large, above 500x500, that usually ends up looking better
+# The following is an example for one of your songs
+
+Poster Image: https://abhisays.com/wp-content/uploads/2013/09/TheCompleteCollectionofAmitabhBachchanMo_10885/Manzil.jpg
+Singers Images: ravi_1, ravi_2, ravi_3
+Song: Rim Jhim Gire Sawan
+Film: Manzil
+Singers (Original): Kishore Kumar
+Singers (Karaoke): Ravi Shankar Kolathur
