@@ -1,35 +1,24 @@
+
 #!/usr/bin/python3
 import os
 import random
 import math
-from moviepy import * # Simple and nice, the __all__ is set in moviepy so only useful things will be loaded
+from moviepy import ImageClip, TextClip, CompositeVideoClip, AudioFileClip, concatenate_videoclips
 from PIL import Image
 import numpy as np
 import argparse
-import subprocess
 
-def download_image(url, destination_folder, filename):
-    """Downloads an image using wget and saves it to the specified location."""
-
-    # Construct the wget command with options
-    command = [
-        "wget",
-        "-O", f"{destination_folder}/{filename}",  # Set the output filename
-        url
-    ]
-
-    # Execute the command
-    subprocess.run(command)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Generate a music-driven slideshow.")
     parser.add_argument('--song_file', type=str, required=True, help="Path to the song file.")
     parser.add_argument('--song_template', type=str, required=True, help="Path to the song template file.")
+    parser.add_argument('--output_path', type=str, required=True, help="Path to the Ouput directory.")
     return parser.parse_args()
 
 def parse_template(file_path):
     config = {}
-    with open(file_path, 'r') as file:
+    with open(file_path, encoding='utf-8-sig') as file:
         for line in file:
             line = line.strip()
             if line.startswith('#') or not line:
@@ -41,8 +30,7 @@ def parse_template(file_path):
     return config
 
 class SlideShowGenerator:
-    def __init__(self, images_dir, music_path, output_path, song_info=None):
-        self.images_dir = images_dir
+    def __init__(self, music_path, output_path, song_info=None):
         self.music_path = music_path
         self.output_path = output_path
         self.frame_path = os.path.join(output_path, song_info['Song'] + '.jpg')
@@ -54,13 +42,18 @@ class SlideShowGenerator:
             'Song': 'Unknown Title',
             'Film': 'Unknown Album',
             'Singers (Original)': 'Unknown Artists',
-            'Singers (Karaoke)': 'Unknown Singer'
+            'Singers (Karaoke)': 'Unknown Singer',
+            'Singers Images': [],
+            'Poster Image': None
         }
-        
-        if not os.path.exists(images_dir):
-            raise ValueError(f"Image directory {images_dir} does not exist")
+
+        # Validate inputs
         if not os.path.exists(music_path):
             raise ValueError(f"Music file {music_path} does not exist")
+        if not self.song_info['Singers Images']:
+            raise ValueError("No singer images provided in the template")
+        if not os.path.exists(self.song_info['Poster Image']):
+            raise ValueError(f"Poster image file {self.song_info['Poster Image']} does not exist")
 
     def _create_slide_with_footer(self, image_path, slide_duration):
         """
@@ -120,7 +113,7 @@ class SlideShowGenerator:
         for i, line in enumerate(text_lines):
             text_clip = TextClip(
                 text=line,
-                font='Arial',
+                font='C:\Windows\Fonts\Arial.ttf',
                 font_size=font_size,
                 color='white',
                 stroke_color='black',
@@ -134,60 +127,51 @@ class SlideShowGenerator:
         return CompositeVideoClip([clip] + text_clips)
 
     def create_music_driven_slideshow(self, slide_duration=3, capture_time=10):
-        # Get image files
-        image_files = [
-            os.path.join(self.images_dir, f) 
-            for f in os.listdir(self.images_dir) 
-            if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.gif')) and any(f.startswith(f"{img}.") for img in self.song_info['Singers Images'])
-        ]
-        
-        if not image_files:
-            raise ValueError("No image files found in the specified directory")
-        
-        # Get movie poster
-        download_image(self.song_info['Poster Image'], self.output_path, f'{self.song_info["Song"]} Poster.jpg')
+        # Get image files from the template
+        image_files = self.song_info['Singers Images']
+        if not all(os.path.exists(img) for img in image_files):
+            raise ValueError("One or more singer image files do not exist")
 
-        # Get music duration
+        # Add the poster image as the first slide
+        extended_image_list = [self.song_info['Poster Image']]
+
+        # Calculate the number of slides needed
         audio = AudioFileClip(self.music_path)
         total_duration = audio.duration
-        
-        # Calculate needed slides needed
         slides_needed = math.ceil(total_duration / slide_duration)
-        
-        # Create repeating image sequence
-        repeats_needed = math.ceil(slides_needed / len(image_files))
-        extended_image_list = [os.path.join(self.output_path, f'{self.song_info["Song"]} Poster.jpg')]
 
+        # Create a repeating sequence of images
+        repeats_needed = math.ceil(slides_needed / len(image_files))
         for _ in range(repeats_needed):
             shuffled_images = image_files.copy()
             random.shuffle(shuffled_images)
             extended_image_list.extend(shuffled_images)
         extended_image_list = extended_image_list[:slides_needed]
-        
+
         # Create video clips with integrated footer
         clips = [
             self._create_slide_with_footer(img_path, slide_duration)
             for img_path in extended_image_list
         ]
-        
+
         # Concatenate all clips
         final_clip = concatenate_videoclips(
             clips=clips,
             method='chain',
         )
-        
+
         # Trim to match audio duration
         if final_clip.duration > total_duration:
             final_clip = final_clip.with_duration(total_duration)
-        
+
         # Capture frame if requested
         if capture_time < final_clip.duration:
             frame = final_clip.get_frame(capture_time)
             Image.fromarray(frame).save(self.frame_path, quality=95)
-        
+
         # Add audio
         final_clip = final_clip.with_audio(audio)
-        
+
         # Write final video
         final_clip.write_videofile(
             self.video_path,
@@ -195,11 +179,11 @@ class SlideShowGenerator:
             audio_codec='aac',
             fps=30
         )
-        
+
         # Clean up
         final_clip.close()
         audio.close()
-        
+
         return self.video_path, self.frame_path
 
 def main():
@@ -207,10 +191,9 @@ def main():
     song_info = parse_template(args.song_template)
 
     generator = SlideShowGenerator(
-        images_dir='/Users/ajitkolathur/Art/Kolathur Karaoke/Singer Images',
         music_path=args.song_file,
         song_info=song_info,
-        output_path='/Users/ajitkolathur/Art/Kolathur Karaoke/Output/'
+        output_path=args.output_path
     )
     
     video_path, frame_path = generator.create_music_driven_slideshow(
@@ -219,7 +202,7 @@ def main():
     )
     
     print(f"HD slideshow created: {video_path}")
-    print(f"Frame captured at 5s: {frame_path}")
+    print(f"Frame captured at 10s: {frame_path}")
 
 if __name__ == '__main__':
     main()
